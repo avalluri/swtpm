@@ -37,6 +37,8 @@ Makefile
 /src/selinux/tmp
 /src/swtpm/swtpm
 /src/swtpm/swtpm_cuse
+/src/swtpm/swtpm_cuse_stdin
+/src/swtpm/swtpm_stdin
 /src/swtpm_bios/swtpm_bios
 /src/swtpm_cert/swtpm_cert
 /src/swtpm_ioctl/swtpm_ioctl
@@ -52,7 +54,9 @@ tests/test_config
 /debian/files
 /debian/swtpm
 /debian/swtpm-cuse
+/debian/swtpm-cuse-stdin
 /debian/swtpm-dev
 /debian/swtpm-libs
+/debian/swtpm-stdin
 /debian/swtpm-tools
 /debian/tmp

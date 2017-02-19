@@ -168,9 +168,11 @@ static const char *usage =
 "\n"
 "The following options are supported:\n"
 "\n"
+#ifndef SWTPM_NO_CUSE
 "-n NAME|--name=NAME :  device name (mandatory)\n"
 "-M MAJ|--maj=MAJ    :  device major number\n"
 "-m MIN|--min=MIN    :  device minor number\n"
+#endif
 "--key file=<path>[,mode=aes-cbc][,format=hex|binary][,remove=[true|false]]\n"
 "                    :  use an AES key for the encryption of the TPM's state\n"
 "                       files; use the given mode for the block encryption;\n"
@@ -197,8 +199,10 @@ static const char *usage =
 "                    :  set the directory where the TPM's state will be written\n"
 "                       into; the TPM_PATH environment variable can be used\n"
 "                       instead\n"
+#ifndef SWTPM_NO_CUSE
 "-r|--runas <user>   :  after creating the CUSE device, change to the given\n"
 "                       user\n"
+#endif
 ""
 "-h|--help           :  display this help screen and terminate\n"
 "\n";
@@ -1236,14 +1240,18 @@ int swtpm_cuse_main(int argc, char **argv, const char *prgname, const char *ifac
 #endif
     int opt, longindex = 0;
     static struct option longopts[] = {
+#ifndef SWTPM_NO_CUSE
         {"maj"           , required_argument, 0, 'M'},
         {"min"           , required_argument, 0, 'm'},
         {"name"          , required_argument, 0, 'n'},
         {"runas"         , required_argument, 0, 'r'},
+#endif
         {"log"           , required_argument, 0, 'l'},
         {"key"           , required_argument, 0, 'k'},
         {"migration-key" , required_argument, 0, 'K'},
+#ifndef SWTPM_NO_CUSE
         {"pid"           , required_argument, 0, 'p'},
+#endif
         {"tpmstate"      , required_argument, 0, 's'},
         {"help"          ,       no_argument, 0, 'h'},
         {"version"       ,       no_argument, 0, 'v'},
@@ -1254,7 +1262,6 @@ int swtpm_cuse_main(int argc, char **argv, const char *prgname, const char *ifac
     const char *devname = NULL;
     char *cinfo_argv[1];
     unsigned int num;
-    struct passwd *passwd;
     const char *tpmdir;
     int n, tpmfd;
     char path[PATH_MAX];
@@ -1263,7 +1270,11 @@ int swtpm_cuse_main(int argc, char **argv, const char *prgname, const char *ifac
     memset(&param, 0, sizeof(param));
 
     while (true) {
-        opt = getopt_long(argc, argv, "M:m:n:r:hv", longopts, &longindex);
+        opt = getopt_long(argc, argv,
+#ifndef SWTPM_NO_CUSE
+                          "M:m:n:r:"
+#endif
+                          "l:hv", longopts, &longindex);
 
         if (opt == -1)
             break;
@@ -1338,10 +1349,12 @@ int swtpm_cuse_main(int argc, char **argv, const char *prgname, const char *ifac
         }
     }
 
+#ifndef SWTPM_NO_CUSE
     if (!cinfo.dev_info_argv) {
         fprintf(stderr, "Error: device name missing\n");
         return -2;
     }
+#endif
 
     if (handle_log_options(param.logging) < 0 ||
         handle_key_options(param.keydata) < 0 ||
@@ -1350,6 +1363,7 @@ int swtpm_cuse_main(int argc, char **argv, const char *prgname, const char *ifac
         handle_tpmstate_options(param.tpmstatedata) < 0)
         return -3;
 
+#ifndef SWTPM_NO_CUSE
     if (setuid(0)) {
         fprintf(stderr, "Error: Unable to setuid root. uid = %d, "
                 "euid = %d, gid = %d\n", getuid(), geteuid(), getgid());
@@ -1357,12 +1371,14 @@ int swtpm_cuse_main(int argc, char **argv, const char *prgname, const char *ifac
     }
 
     if (param.runas) {
+        struct passwd *passwd;
         if (!(passwd = getpwnam(param.runas))) {
             fprintf(stderr, "User '%s' does not exist\n",
                     param.runas);
             return -5;
         }
     }
+#endif
 
     tpmdir = tpmstate_get_dir();
     if (tpmdir == NULL) {

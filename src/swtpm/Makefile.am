@@ -67,6 +67,8 @@ endif
 bin_PROGRAMS = swtpm
 if WITH_CUSE
 bin_PROGRAMS += swtpm_cuse
+bin_PROGRAMS += swtpm_stdin
+bin_PROGRAMS += swtpm_cuse_stdin
 endif
 
 swtpm_DEPENDENCIES = $(lib_LTLIBRARIES)
@@ -123,6 +125,53 @@ swtpm_cuse_LDADD = \
 	$(GLIB_LIBS) \
 	$(GTHREAD_LIBS) \
 	$(LIBTPMS_LIBS)
+
+# Same cuse_tpm.c as in swtpm_cuse, but
+# with a replacement implementation of the cuse
+# API which talks via a Unix domain socket
+# inherited from the parent. To be used
+# by qemu.
+swtpm_stdin_SOURCES = \
+	cuse_tpm.c \
+	cuse_stub.c
+
+swtpm_stdin_CPPFLAGS = \
+	-DSWTPM_NO_CUSE=1
+
+swtpm_stdin_CFLAGS = \
+	-I$(top_srcdir)/include \
+	-I$(top_srcdir)/include/swtpm \
+	$(LIBFUSE_CFLAGS) \
+	$(GLIB_CFLAGS) \
+	$(HARDENING_CFLAGS)
+
+swtpm_stdin_LDADD = \
+	-L$(PWD)/.libs -lswtpm_libtpms \
+	$(GLIB_LIBS) \
+	$(GTHREAD_LIBS) \
+	$(LIBTPMS_LIBS)
+
+
+# Provides a /dev device via CUSE, calls swtpm_stdin
+# to do the actual work. Can be used to test cuse_stdin
+# without telling qemu how to use swtpm_stdin.
+swtpm_cuse_stdin_SOURCES = \
+	cuse_stdin.c
+
+swtpm_cuse_stdin_CFLAGS = \
+	-I$(top_srcdir)/include \
+	-I$(top_srcdir)/include/swtpm \
+	$(GLIB_CFLAGS) \
+	$(LIBFUSE_CFLAGS) \
+	$(HARDENING_CFLAGS)
+
+swtpm_cuse_stdin_LDADD = \
+	-L$(PWD)/.libs -lswtpm_libtpms \
+	$(LIBFUSE_LIBS) \
+	$(GLIB_LIBS) \
+	$(GTHREAD_LIBS) \
+	$(LIBTPMS_LIBS)
+
 
 AM_CPPFLAGS   = 
 LDADD         = -ltpms

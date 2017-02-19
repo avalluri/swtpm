@@ -240,4 +240,46 @@ enum {
     CMD_GET_CONFIG,
 };
 
+/*
+ * Part of the Unix Domain socket protocol (CUSE without kernel support):
+ * ...
+ */
+enum {
+    /**
+     * Message to swtpm:
+     * int SWTPM_READ_REQUEST
+     * size_t bytes requested for reading
+     *
+     * Response:
+     * int errno
+     * char [actual number of bytes]
+     */
+    SWTPM_READ_REQUEST = 0,
+    /**
+     * Message to swtpm:
+     * int SWTPM_WRITE_REQUEST
+     * char [amount of bytes to write]
+     *
+     * Response:
+     * int errno
+     * optional: ssize_t actual number of bytes written
+     */
+    SWTPM_WRITE_REQUEST = 1
+};
+
+struct swtpm_read_request {
+    int request;
+    size_t size;
+};
+
+struct swtpm_read_response {
+    int eno;
+    char data[0];
+};
+
+struct swtpm_write_response {
+    int eno;
+    ssize_t written;
+};
+
 #endif /* _TPM_IOCTL_H */
