@@ -60,9 +60,10 @@
 
 struct ctrlchannel {
     int fd;
+    bool is_client;
 };
 
-struct ctrlchannel *ctrlchannel_new(int fd)
+struct ctrlchannel *ctrlchannel_new(int fd, bool is_client)
 {
     struct ctrlchannel *cc = malloc(sizeof(struct ctrlchannel));
 
@@ -72,12 +73,21 @@ struct ctrlchannel *ctrlchannel_new(int fd)
     }
 
     cc->fd = fd;
+    cc->is_client = is_client;
     return cc;
 }
 
 int ctrlchannel_get_fd(struct ctrlchannel *cc)
 {
-    if (!cc)
+    if (!cc || cc->is_client)
+        return -1;
+
+    return cc->fd;
+}
+
+int ctrlchannel_get_client_fd(struct ctrlchannel *cc)
+{
+    if (!cc || !cc->is_client)
         return -1;
 
     return cc->fd;
