@@ -65,6 +65,7 @@
 #include "tpmlib.h"
 #include "utils.h"
 #include "mainloop.h"
+#include "ctrlchannel.h"
 
 /* local variables */
 static int notify_fd[2] = {-1, -1};
@@ -323,6 +324,14 @@ int swtpm_main(int argc, char **argv, const char *prgname, const char *iface)
         if (!getsockopt(mlp.fd, SOL_SOCKET, SO_TYPE, &sock_type, &len) &&
                         sock_type != SOCK_STREAM)
             mlp.flags |= MAIN_LOOP_FLAG_READALL;
+    } else if (mlp.cc) {
+        int fd = ctrlchannel_get_fd(mlp.cc);
+
+        if (fd < 0)
+            fd = ctrlchannel_get_client_fd(mlp.cc);
+        if (fd > 0) {
+            SWTPM_IO_SetSocketFD(fd);
+        }
     }
 
     if (daemonize) {

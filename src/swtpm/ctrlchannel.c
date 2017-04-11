@@ -55,6 +55,8 @@
 #include "tpm_ioctl.h"
 #include "tpmlib.h"
 #include "swtpm_nvfile.h"
+#include "swtpm_io.h"
+#include "swtpm_debug.h"
 
 /* local variables */
 
@@ -218,6 +220,47 @@ err_fd_broken:
     return fd;
 }
 
+static int ctrlchannel_process_cmd(int fd)
+{
+    ptm_processcmd ppc;
+    TPM_CONNECTION_FD connection_fd = { .fd = fd };
+    uint32_t rTotal = 0;
+    TPM_RESULT res = 0;
+    unsigned char *data = NULL;
+    uint32_t req_length = 0, resp_length = 0;
+    int n;
+
+    res = SWTPM_IO_Read(&connection_fd, ppc.u.req.cmd, &req_length, 4096, NULL,
+                        false);
+    if (res != 0) {
+        SWTPM_IO_Disconnect(&connection_fd);
+        goto err_fd_broken;
+    }
+
+    res = TPMLIB_Process(&data, &resp_length, &rTotal, ppc.u.req.cmd,
+                         req_length);
+    if (res != 0) {
+        SWTPM_IO_Disconnect(&connection_fd);
+        goto err_fd_broken;
+    }
+
+    logprintf(STDERR_FILENO, "Response length: %u(rTotal: %u)\n",
+              resp_length, rTotal);
+
+    n = write(fd, data, resp_length);
+    if (n < 0) {
+        logprintf(STDERR_FILENO,
+                  "Error: Could not send response: %s\n", strerror(errno));
+        close(fd);
+        fd = -1;
+    }
+
+err_fd_broken:
+    if (data)
+        TPM_Free(data);
+
+    return fd;
+}
 /*
  * ctrlchannel_process_fd: Read command from control channel and execute it
  *
@@ -264,6 +307,7 @@ int ctrlchannel_process_fd(int fd,
     ptm_setstate *pss;
     ptm_loc *pl;
 
+
     size_t out_len = 0;
     TPM_RESULT res;
     uint32_t remain;
@@ -271,7 +315,7 @@ int ctrlchannel_process_fd(int fd,
     if (fd < 0)
         return -1;
 
-    n = read(fd, &input, sizeof(input));
+    n = read(fd, &input.cmd, sizeof(input.cmd));
     if (n < 0) {
         goto err_socket;
     }
@@ -285,6 +329,7 @@ int ctrlchannel_process_fd(int fd,
 
     n -= sizeof(input.cmd);
 
+    logprintf(STDERR_FILENO, "CTRL command : %d\n", be32toh(input.cmd));
     switch (be32toh(input.cmd)) {
     case CMD_GET_CAPABILITY:
         *ptm_caps = htobe64(
@@ -304,6 +349,7 @@ int ctrlchannel_process_fd(int fd,
         break;
 
     case CMD_INIT:
+        n = read(fd, &input.body, sizeof(input.body));
         if (n != (ssize_t)sizeof(ptm_init)) /* r/w */
             goto err_bad_input;
 
@@ -367,6 +413,7 @@ int ctrlchannel_process_fd(int fd,
         if (!*tpm_running)
             goto err_not_running;
 
+        n += read(fd, &input.body, sizeof(input.body));
         if (n < (ssize_t)sizeof(re->u.req.loc)) /* rw */
             goto err_bad_input;
 
@@ -384,6 +431,7 @@ int ctrlchannel_process_fd(int fd,
         break;
 
     case CMD_SET_LOCALITY:
+        n += read(fd, &input.body, sizeof(input.body));
         if (n < (ssize_t)sizeof(pl->u.req.loc)) /* rw */
             goto err_bad_input;
 
@@ -415,6 +463,7 @@ int ctrlchannel_process_fd(int fd,
         if (!*tpm_running)
              goto err_not_running;
 
+        n += read(fd, &input.body, sizeof(input.body));
         if (n < (ssize_t)offsetof(ptm_hdata, u.req.data)) /* rw */
              goto err_bad_input;
 
@@ -487,6 +536,7 @@ int ctrlchannel_process_fd(int fd,
         if (!*tpm_running)
             goto err_not_running;
 
+        n += read(fd, &input.body, sizeof(input.body));
         pgs = (ptm_getstate *)input.body;
         if (n < (ssize_t)sizeof(pgs->u.req)) /* rw */
             goto err_bad_input;
@@ -497,6 +547,7 @@ int ctrlchannel_process_fd(int fd,
         if (*tpm_running)
             goto err_running;
 
+        n += read(fd, &input.body, sizeof(input.body));
         pss = (ptm_setstate *)input.body;
         if (n < (ssize_t)offsetof(ptm_setstate, u.req.data)) /* rw */
             goto err_bad_input;
@@ -516,6 +567,10 @@ int ctrlchannel_process_fd(int fd,
 
         out_len = sizeof(pgc->u.resp);
         break;
+
+    case CMD_PROCESS_CMD:
+        return ctrlchannel_process_cmd(fd);
+       break;
 
     default:
         logprintf(STDERR_FILENO,
